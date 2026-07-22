@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package MarketDataDisseminator;
+
+// Throwaway schema for the Phase 0 protobuf smoke test: one message that
+// exercises a handful of scalar types end to end (build one, send_message it,
+// recv_message + parse on the client, print the fields).
+message TestMessage {
+  uint64 id      = 1;  // non-negative -> plain varint
+  string text    = 4;  // UTF-8, length-prefixed
+}

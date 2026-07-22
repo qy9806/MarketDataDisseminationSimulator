@@ -1,0 +1,13 @@
+build/
+cmake-build-*/
+*.o
+*.pb.cc
+*.pb.h
+.DS_Store
+compile_commands.json
+
+# editor / tooling / AI-collab meta — keep out of the public portfolio repo
+.cache/
+.claude/
+.vscode/
+CLAUDE.md

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package md;
+
+// A single aggregated price level in an L2 / Market-By-Price book.
+// price is fixed-point integer ticks (never floating point on the wire).
+message Level {
+  sint64 price       = 1;  // integer ticks
+  uint64 quantity    = 2;  // aggregate size resting at this price
+  uint32 order_count = 3;  // optional: number of orders composing the quantity
+}
+
+enum Side {
+  BID = 0;
+  ASK = 1;
+}
+
+enum Action {
+  ADD    = 0;  // new price level appears
+  UPDATE = 1;  // quantity at an existing level changes
+  DELETE = 2;  // level emptied / removed
+  TRADE  = 3;  // execution print
+}
+
+// A single book delta. seq is monotonic per instrument.
+message Incremental {
+  uint64 seq        = 1;
+  uint32 instrument = 2;
+  Side   side       = 3;
+  Action action     = 4;
+  Level  level      = 5;  // for ADD / UPDATE / DELETE
+  uint64 trade_size = 6;  // for TRADE
+}
+
+// Full book state, used to seed a subscriber and to recover after a gap.
+message Snapshot {
+  uint64 seq        = 1;  // book state as of this sequence number
+  uint32 instrument = 2;
+  repeated Level bids = 3;  // descending price
+  repeated Level asks = 4;  // ascending price
+}
