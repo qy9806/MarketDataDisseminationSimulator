@@ -18,6 +18,7 @@ find_package(protobuf CONFIG REQUIRED)
 add_library(md_common
   src/common/tcp_socket.cpp
   src/common/framing.cpp
+  src/common/orderbook.cpp
 )
 
 # Generate C++ sources from the .proto schemas and attach them to md_common.
