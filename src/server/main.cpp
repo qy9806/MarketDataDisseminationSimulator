@@ -1,44 +1,86 @@
-// Phase 0 smoke test: accept one client and send a single raw C-string
-// to prove the raw-TCP pipe works. No protobuf / framing / book yet.
+// Phase 2: consume the CSV feed into the authoritative book AND disseminate it.
+// main() only orchestrates -- the real work lives in the modules it calls:
+//   feeder       (feed_reader)  : CSV line  -> FeedEvent
+//   EventHandler (event_hanlder): FeedEvent -> mutate the book / next_event
+//   Translate    (translate)    : Order/book -> wire protobuf
+//   feeder       (framing/tcp)  : wire msg   -> bytes on the socket
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <unordered_map>
 
-#include "tcp_socket.h"
-#include "test_message.pb.h"
+#include "event_hanlder.h"
 #include "framing.h"
+#include "market_data.pb.h"
+#include "orderbook.h"
+#include "tcp_socket.h"
+#include "translate.h"
 
 namespace {
+namespace wire = MarketDataDisseminationProtoBuff; // generated protobuf types
 constexpr uint16_t kPort = 9001;
-}  // namespace
 
-int main() {
+std::unordered_map<InstrumentId, Instrument> make_instruments() {
+    return {{"AAPL", Instrument{"AAPL", "AAPL", 10}}};
+}
 
-    MarketDataDisseminator::TcpSocket listening_socket =
-        MarketDataDisseminator::TcpSocket::listen_on(kPort);
-    // set up lisitng socket an dbinds to port 9001;
-    std::cout << "[server] listening on port " << kPort << ", waiting for client...\n";
+} // namespace
 
-    MarketDataDisseminator::TcpSocket connection_socket = listening_socket.accept();
-    // return a connection socket
+int main(int argc, char **argv) {
+    const std::string feed_path = (argc > 1) ? argv[1] : "data/feed.csv";
 
+    auto instruments = make_instruments();
+    OrderBookManager manager;
+
+    std::ifstream feed(feed_path);
+    if (!feed) {
+        std::cerr << "[server] cannot open feed " << feed_path << "\n";
+        return EXIT_FAILURE;
+    }
+
+    // 1. Seed: replay the first few events into the book before anyone connects
+    //    (the "market already running"). Same open file -- streaming continues below.
+    constexpr int kSeedLines = 5;
+    for (int i = 0; i < kSeedLines; ++i) {
+        auto ev = EventHandler::next_event(feed);
+        if (!ev)
+            break;
+        EventHandler::apply_event(manager, instruments, *ev);
+    }
+    std::cout << "[server] seeded order book" << std::endl;
+
+    // 2. Wait for one subscriber.
+    feeder::TcpSocket listening_socket = feeder::TcpSocket::listen_on(kPort);
+    std::cout << "[server] listening on " << kPort << ", waiting for client...\n";
+    feeder::TcpSocket conn = listening_socket.accept();
     std::cout << "[server] client connected\n";
 
-    const std::string msg = "this is a test";
-    MarketDataDisseminator::TestMessage test_msg{};
-    test_msg.set_id(100);
-    test_msg.set_text(msg);
+    // 3. Send the whole book set as a Snapshot to seed the subscriber.
+    uint64_t seq = 0;
+    auto snap = Translate::build_snapshot(seq, manager);
+    feeder::send_message(conn, snap);
+    std::cout << "[server] sent snapshot (" << snap.books_size() << " instruments)\n";
 
-    auto res = MarketDataDisseminator::send_message(connection_socket, test_msg);
-    if(!res){
-        std::cerr<<"unble to send mesage";
-        return 0;
+    // 4. Stream the rest of the feed live: getline -> apply -> disseminate.
+    while (auto ev = EventHandler::next_event(feed)) {
+        EventHandler::apply_event(manager, instruments, *ev);
+        wire::Incremental inc;
+        inc.set_seq(++seq);
+        inc.set_action(Translate::to_wire_action(ev->action));
+        *inc.mutable_order() = Translate::to_wire(ev->order);
+        if (!feeder::send_message(conn, inc)) {
+            std::cerr << "[server] client disconnected\n";
+            break;
+        }
+        std::cout << "[server] sent incremental seq=" << seq << "\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
     }
-    std::cout << "[server] sent: " << msg << "\n";
 
-
-
+    std::cout << "[server] feed exhausted, done\n";
     return EXIT_SUCCESS;
 }

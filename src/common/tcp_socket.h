@@ -5,7 +5,7 @@
 #include <string>
 #include <iostream>
 
-namespace MarketDataDisseminator {
+namespace feeder {
 
 // Thin RAII wrapper around a POSIX TCP socket file descriptor.
 // Non-copyable, movable. The whole "protocol" lives above this in framing.h.
@@ -48,4 +48,4 @@ private:
     int fd_ = -1;
 };
 
-}  // namespace MarketDataDisseminator
+}  // namespace feeder

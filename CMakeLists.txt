@@ -19,6 +19,7 @@ add_library(md_common
   src/common/tcp_socket.cpp
   src/common/framing.cpp
   src/common/orderbook.cpp
+  src/common/feed_reader.cpp
 )
 
 # Generate C++ sources from the .proto schemas and attach them to md_common.
@@ -39,7 +40,11 @@ target_include_directories(md_common PUBLIC
 )
 target_link_libraries(md_common PUBLIC protobuf::libprotobuf)
 
-add_executable(md_server src/server/main.cpp)
+add_executable(md_server
+  src/server/main.cpp
+  src/server/event_handler.cpp
+  src/server/translate.cpp
+)
 target_link_libraries(md_server PRIVATE md_common)
 
 add_executable(md_client src/client/main.cpp)

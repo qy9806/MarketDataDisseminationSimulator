@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace MarketDataDisseminator  {
+namespace feeder  {
 
 namespace {
 void fail(const char* what) {
@@ -200,4 +200,4 @@ bool TcpSocket::recv_all(void* buf, size_t len) const {
     return true;
 }
 
-}  // namespace MarketDataDisseminator
+}  // namespace feeder

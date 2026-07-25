@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace MarketDataDisseminator {
+namespace feeder {
 
 bool send_message(const TcpSocket& sock, const google::protobuf::MessageLite& msg) {
     const size_t payload_size = msg.ByteSizeLong();
@@ -40,4 +40,4 @@ bool recv_message(const TcpSocket& sock, google::protobuf::MessageLite& msg) {
     return msg.ParseFromArray(buf.data(), static_cast<int>(payload_size_after_endian ));
 }
 
-}  // namespace MarketDataDisseminator
+}  // namespace feeder
