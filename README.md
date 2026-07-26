@@ -1,8 +1,7 @@
 # Market Data Dissemination Simulator
 
 An exchange-style market data feed in C++. A server maintains a live L2 (price-level) order
-book and streams it to a subscribing client over **raw TCP** (POSIX sockets) — no gRPC, no
-HTTP: the wire protocol is a hand-rolled **4-byte length prefix + protobuf payload**.
+book and streams it to a subscribing client over **raw TCP** (POSIX sockets).
 
 ## Server threads
 
@@ -34,10 +33,6 @@ cd build
 
 ## Sample output
 
-Server — seeding the book, then streaming events and answering snapshot requests:
-
-![server](sample/server.png)
-
-Client — initial snapshot, incremental updates, and periodic snapshot requests:
-
-![client](sample/client.png)
+| Server — streams events, answers snapshot requests | Client — mirrors the book from snapshot + deltas |
+|---|---|
+| ![server](sample/server.png) | ![client](sample/client.png) |
