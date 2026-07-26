@@ -24,7 +24,7 @@ enum Action {
   REPLACE = 2;  
 }
 
-message Incremental {
+message MarketAction {
   uint64 seq    = 1;
   Action action = 2;
   Order  order  = 3;  // the order added / removed / replaced
@@ -41,4 +41,19 @@ message InstrumentBook {
 message Snapshot {
   uint64 seq                    = 1;  // book state as of this sequence number
   repeated InstrumentBook books = 2;
+}
+
+// Client -> server: ask for a fresh full-book Snapshot (all instruments),
+// e.g. after detecting a sequence gap. No fields -- it's just the trigger.
+message SnapshotRequest {
+}
+
+// Internal queue envelope: one element carries EITHER a full Snapshot OR a
+// single MarketAction, so a single queue type holds both. `body_case()`
+// discriminates. The sender unwraps and puts the inner message on the wire.
+message MarketInfo {
+  oneof body {
+    Snapshot     snapshot = 1;
+    MarketAction action   = 2;
+  }
 }

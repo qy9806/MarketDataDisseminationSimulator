@@ -4,7 +4,7 @@
 
 #include "tcp_socket.h"
 
-namespace feeder {
+namespace networkFrame {
 
 // Our entire "application-layer protocol": a 4-byte big-endian length prefix
 // followed by the protobuf payload. This is the framing gRPC/HTTP-2 would
@@ -16,4 +16,4 @@ bool send_message(const TcpSocket& sock, const google::protobuf::MessageLite& ms
 // Read one length-prefixed frame from the socket and parse it into `msg`.
 bool recv_message(const TcpSocket& sock, google::protobuf::MessageLite& msg);
 
-}  // namespace feeder
+}  // namespace networkFrame

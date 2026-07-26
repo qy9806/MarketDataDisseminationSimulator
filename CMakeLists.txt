@@ -13,6 +13,7 @@ endif()
 # transitively -- protobuf 35 is built on Abseil and the generated *.pb.cc call
 # its logging/CHECK internals, which module-mode FindProtobuf does NOT link.
 find_package(protobuf CONFIG REQUIRED)
+find_package(Threads REQUIRED)
 
 # Shared library: transport + framing (+ generated protobuf, attached below).
 add_library(md_common
@@ -44,8 +45,14 @@ add_executable(md_server
   src/server/main.cpp
   src/server/event_handler.cpp
   src/server/translate.cpp
+  src/server/market_data_feed_listener.cpp
+  src/server/client_request_listener.cpp
+  src/server/sender.cpp
 )
-target_link_libraries(md_server PRIVATE md_common)
+target_link_libraries(md_server PRIVATE md_common Threads::Threads)
 
-add_executable(md_client src/client/main.cpp)
+add_executable(md_client
+  src/client/main.cpp
+  src/client/parse_event.cpp
+)
 target_link_libraries(md_client PRIVATE md_common)
