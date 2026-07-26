@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Data Feed Simulator — How It Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:0 0% 100%;      --foreground:240 10% 3.9%;
+    --card:0 0% 100%;            --card-foreground:240 10% 3.9%;
+    --border:240 5.9% 90%;       --input:240 5.9% 90%;
+    --primary:240 5.9% 10%;      --primary-foreground:0 0% 98%;
+    --secondary:240 4.8% 95.9%;  --secondary-foreground:240 5.9% 10%;
+    --muted:240 4.8% 95.9%;      --muted-foreground:240 3.8% 46.1%;
+    --accent:240 4.8% 95.9%;     --accent-foreground:240 5.9% 10%;
+    --destructive:0 84.2% 60.2%; --ring:240 5.9% 10%;
+    --green:142 71% 45%; --amber:38 92% 50%; --red:0 72% 51%;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --background:240 10% 3.9%;   --foreground:0 0% 98%;
+      --card:240 8% 7%;            --card-foreground:0 0% 98%;
+      --border:240 3.7% 17%;       --input:240 3.7% 15.9%;
+      --primary:0 0% 98%;          --primary-foreground:240 5.9% 10%;
+      --secondary:240 3.7% 15.9%;  --secondary-foreground:0 0% 98%;
+      --muted:240 3.7% 15.9%;     --muted-foreground:240 5% 64.9%;
+      --accent:240 3.7% 15.9%;     --accent-foreground:0 0% 98%;
+      --destructive:0 62.8% 30.6%; --ring:240 4.9% 83.9%;
+      --red:0 72% 60%;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:hsl(var(--background));color:hsl(var(--foreground));
+       font:15px/1.6 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 24px 80px}
+  header.top{border-bottom:1px solid hsl(var(--border));padding:18px 24px}
+  header.top .wrap{padding:0;max-width:1080px}
+  header.top h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+  header.top p{margin:4px 0 0;color:hsl(var(--muted-foreground));font-size:13px}
+
+  .flex{display:flex} .items-center{align-items:center}
+  .justify-between{justify-content:space-between}
+  .gap-2{gap:8px} .gap-3{gap:12px} .gap-4{gap:16px}
+  .grid{display:grid}
+  .mt-2{margin-top:8px} .mt-3{margin-top:12px} .mt-4{margin-top:16px}
+  .mb-2{margin-bottom:8px} .mb-3{margin-bottom:12px}
+  .text-xs{font-size:12px} .text-sm{font-size:13px}
+  .muted{color:hsl(var(--muted-foreground))}
+  .mono{font-family:var(--mono)}
+  .flex-wrap{flex-wrap:wrap}
+
+  section{margin:0 0 34px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:hsl(var(--muted-foreground));
+     font-weight:600;margin:0 0 12px}
+
+  .sc-card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;
+           box-shadow:0 1px 2px rgba(0,0,0,.04);padding:20px}
+  .sc-card.pad-sm{padding:14px 16px}
+  .sc-btn{background:hsl(var(--primary));color:hsl(var(--primary-foreground));border:1px solid transparent;
+          border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .sc-btn:hover{opacity:.88}
+  .sc-btn:disabled{opacity:.35;cursor:default}
+  .sc-btn-outline{background:transparent;color:hsl(var(--foreground));border:1px solid hsl(var(--border));
+                  border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .sc-btn-outline:hover{background:hsl(var(--accent))}
+  .sc-btn-outline:disabled{opacity:.35;cursor:default}
+  .sc-badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;
+            font-size:11px;font-weight:600;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))}
+  .sc-badge.ok{background:hsl(var(--green)/.15);color:hsl(var(--green))}
+  .sc-badge.bad{background:hsl(var(--destructive)/.15);color:hsl(var(--red))}
+  .sc-badge.warn{background:hsl(var(--amber)/.18);color:hsl(var(--amber))}
+
+  .sc-tabs{display:inline-flex;background:hsl(var(--muted));padding:4px;border-radius:10px;gap:2px}
+  .sc-tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:hsl(var(--muted-foreground));
+          cursor:pointer;border:none;background:transparent;font-family:inherit}
+  .sc-tab[data-active="true"]{background:hsl(var(--card));color:hsl(var(--foreground));
+          box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+  svg.diagram{width:100%;height:auto;display:block;overflow:visible}
+  .frame-title{fill:hsl(var(--muted-foreground));font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .box-rect{fill:hsl(var(--card));stroke:hsl(var(--border));stroke-width:1.5}
+  .box-rect.active{stroke:hsl(var(--ring));stroke-width:2.5;filter:drop-shadow(0 0 5px hsl(var(--ring)/.45))}
+  .box-label{fill:hsl(var(--muted-foreground));font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+  .box-value{fill:hsl(var(--foreground));font-family:var(--mono);font-size:12.5px;font-weight:700}
+  .box-sub{fill:hsl(var(--muted-foreground));font-size:10.5px}
+  .frame-box{fill:none;stroke:hsl(var(--border));stroke-width:1.2;stroke-dasharray:4 3}
+  .wire{fill:none;stroke:hsl(var(--ring));stroke-width:2.2;opacity:.18;transition:opacity .25s;marker-end:url(#arrowhead)}
+  .wire.active{opacity:1}
+
+  /* thread lanes */
+  .lane{border:1px solid hsl(var(--border));border-radius:10px;padding:12px 14px;background:hsl(var(--card));
+        transition:border-color .2s, box-shadow .2s}
+  .lane.hot{border-color:hsl(var(--ring));box-shadow:0 0 0 1px hsl(var(--ring)/.4)}
+  .lane .tname{font-weight:700;font-size:13px}
+  .lane .tstatus{font-family:var(--mono);font-size:12px;color:hsl(var(--muted-foreground));margin-top:4px;min-height:18px}
+
+  /* order book */
+  .book{font-family:var(--mono);font-size:12.5px}
+  .book .row{display:flex;justify-content:space-between;padding:2px 8px;border-radius:5px;position:relative;overflow:hidden}
+  .book .row .bar{position:absolute;top:0;bottom:0;right:0;opacity:.14;border-radius:5px}
+  .book .row.bid .bar{background:hsl(var(--green))}
+  .book .row.ask .bar{background:hsl(var(--red))}
+  .book .row.bid .px{color:hsl(var(--green));font-weight:700}
+  .book .row.ask .px{color:hsl(var(--red));font-weight:700}
+  .book .row.flash{animation:flash .7s}
+  @keyframes flash{0%{background:hsl(var(--amber)/.35)}100%{background:transparent}}
+  .book .spread{color:hsl(var(--muted-foreground));text-align:center;font-size:11px;padding:3px 0;border-top:1px dashed hsl(var(--border));border-bottom:1px dashed hsl(var(--border));margin:3px 0}
+
+  /* queue */
+  .queue{display:flex;gap:6px;flex-wrap:wrap;min-height:34px;align-items:center}
+  .qmsg{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;
+        background:hsl(var(--secondary));border:1px solid hsl(var(--border));animation:pop .25s}
+  .qmsg.snap{background:hsl(var(--amber)/.18);color:hsl(var(--amber))}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .qempty{font-size:12px;color:hsl(var(--muted-foreground));font-style:italic}
+
+  /* spinlock chip */
+  .lockchip{display:inline-flex;align-items:center;gap:7px;border:1px solid hsl(var(--border));border-radius:8px;
+            padding:5px 10px;font-family:var(--mono);font-size:12px;font-weight:700;transition:all .15s}
+  .lockchip .dot{width:9px;height:9px;border-radius:50%;background:hsl(var(--green))}
+  .lockchip.held{border-color:hsl(var(--amber));background:hsl(var(--amber)/.12)}
+  .lockchip.held .dot{background:hsl(var(--amber))}
+  .lockchip.spin{border-color:hsl(var(--red));background:hsl(var(--destructive)/.10)}
+  .lockchip.spin .dot{background:hsl(var(--red));animation:blink .3s infinite alternate}
+  @keyframes blink{from{opacity:1}to{opacity:.25}}
+
+  /* client log */
+  .log{font-family:var(--mono);font-size:11.5px;background:hsl(var(--muted)/.6);border:1px solid hsl(var(--border));
+       border-radius:8px;padding:10px 12px;height:150px;overflow-y:auto;line-height:1.7}
+  .log .snap{color:hsl(var(--amber));font-weight:700}
+  .log .incr{color:hsl(var(--foreground))}
+  .log .sys{color:hsl(var(--muted-foreground))}
+
+  /* wire-format byte cells */
+  .bytes{display:flex;gap:4px;flex-wrap:wrap;align-items:stretch}
+  .byte{font-family:var(--mono);font-size:13px;font-weight:700;border:1.5px solid hsl(var(--border));
+        border-radius:7px;padding:8px 0;width:46px;text-align:center;background:hsl(var(--card))}
+  .byte.hdr{border-color:hsl(var(--amber));background:hsl(var(--amber)/.10);color:hsl(var(--amber))}
+  .byte.pay{border-color:hsl(var(--green)/.6);background:hsl(var(--green)/.07);color:hsl(var(--green));width:auto;padding:8px 18px;flex:1;min-width:150px}
+  .bytelab{font-size:10.5px;color:hsl(var(--muted-foreground));text-align:center;margin-top:4px}
+  .stepline{border-left:3px solid hsl(var(--border));padding:8px 14px;margin:6px 0;border-radius:0 8px 8px 0;transition:all .2s}
+  .stepline.on{border-left-color:hsl(var(--ring));background:hsl(var(--accent)/.6)}
+  .stepline .code{font-family:var(--mono);font-size:12.5px;font-weight:700}
+  .stepline .note{font-size:12px;color:hsl(var(--muted-foreground))}
+
+  input[type=range]{accent-color:hsl(var(--primary))}
+  input[type=number]{font:inherit;font-family:var(--mono);font-size:13px;padding:6px 8px;border:1px solid hsl(var(--input));
+                     border-radius:7px;width:110px;background:hsl(var(--card));color:hsl(var(--foreground))}
+  .tabpane{display:none}
+  .tabpane[data-show="true"]{display:block}
+  .kbd{font-family:var(--mono);font-size:11px;background:hsl(var(--muted));border:1px solid hsl(var(--border));
+       border-radius:5px;padding:1px 6px}
+  @media (max-width:860px){.sim-grid{grid-template-columns:1fr !important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <h1>Exchange-Style Market Data Feed Simulator</h1>
+  <p>Raw TCP (POSIX sockets) · length-prefixed framing + protobuf · L2 order book · 3-thread server with a spinlock-protected outgoing queue</p>
+</div></header>
+<main class="wrap">
+
+  <div class="sc-tabs mb-3" id="tabs">
+    <button class="sc-tab" data-tab="overview" data-active="true">1 · System overview</button>
+    <button class="sc-tab" data-tab="wire">2 · Wire format</button>
+    <button class="sc-tab" data-tab="threads">3 · Server threads (live)</button>
+  </div>
+
+  <!-- ============ TAB 1: OVERVIEW ============ -->
+  <div class="tabpane" data-pane="overview" data-show="true">
+    <section>
+      <div class="sc-card">
+        <svg class="diagram" viewBox="0 0 1040 400" id="ovsvg">
+          <defs>
+            <marker id="arrowhead" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+              <polygon points="0 0, 9 3.5, 0 7" fill="hsl(var(--ring))"/>
+            </marker>
+          </defs>
+
+          <!-- client frame -->
+          <rect class="frame-box" x="20" y="110" width="240" height="200" rx="10"/>
+          <text class="frame-title" x="32" y="100">md_client (subscriber)</text>
+          <g id="ov-client">
+            <rect class="box-rect" x="40" y="130" width="200" height="52" rx="8"/>
+            <text class="box-value" x="52" y="152">TCP socket</text>
+            <text class="box-sub" x="52" y="170">connect() → 127.0.0.1:9001</text>
+          </g>
+          <g id="ov-mirror">
+            <rect class="box-rect" x="40" y="230" width="200" height="60" rx="8"/>
+            <text class="box-value" x="52" y="252">Mirrored L2 book</text>
+            <text class="box-sub" x="52" y="270">snapshot + incrementals applied</text>
+          </g>
+
+          <!-- server frame -->
+          <rect class="frame-box" x="380" y="20" width="640" height="360" rx="10"/>
+          <text class="frame-title" x="392" y="12">md_server (publisher) — one process, three threads</text>
+
+          <g id="ov-gen">
+            <rect class="box-rect" x="410" y="40" width="250" height="52" rx="8"/>
+            <text class="box-label" x="422" y="60">event source</text>
+            <text class="box-value" x="422" y="80">Simulated market events</text>
+          </g>
+
+          <g id="ov-consumer">
+            <rect class="box-rect" x="410" y="130" width="250" height="60" rx="8"/>
+            <text class="box-label" x="422" y="150">thread 2</text>
+            <text class="box-value" x="422" y="170">Market-event consumer</text>
+            <text class="box-sub" x="422" y="184">applies add / replace / remove</text>
+          </g>
+
+          <g id="ov-book">
+            <rect class="box-rect" x="740" y="130" width="240" height="60" rx="8"/>
+            <text class="box-label" x="752" y="150">authoritative state</text>
+            <text class="box-value" x="752" y="170">L2 order book</text>
+            <text class="box-sub" x="752" y="184">price-level bids / asks + seq no.</text>
+          </g>
+
+          <g id="ov-queue">
+            <rect class="box-rect" x="740" y="230" width="240" height="60" rx="8"/>
+            <text class="box-label" x="752" y="250">shared — spinlock 🔒</text>
+            <text class="box-value" x="752" y="270">Outgoing message queue</text>
+            <text class="box-sub" x="752" y="284">snapshots + incrementals</text>
+          </g>
+
+          <g id="ov-sender">
+            <rect class="box-rect" x="410" y="230" width="250" height="60" rx="8"/>
+            <text class="box-label" x="422" y="250">thread 3</text>
+            <text class="box-value" x="422" y="270">Request sender</text>
+            <text class="box-sub" x="422" y="284">frame → send() on socket</text>
+          </g>
+
+          <g id="ov-listener">
+            <rect class="box-rect" x="410" y="315" width="250" height="52" rx="8"/>
+            <text class="box-label" x="422" y="335">thread 1</text>
+            <text class="box-value" x="422" y="355">Client-request listener</text>
+          </g>
+
+          <!-- wires -->
+          <path id="w-sub"    class="wire" d="M 240 156 C 320 156, 320 341, 405 341"/>
+          <path id="w-gen"    class="wire" d="M 535 92 L 535 125"/>
+          <path id="w-apply"  class="wire" d="M 660 160 L 735 160"/>
+          <path id="w-enq"    class="wire" d="M 860 190 L 860 225"/>
+          <path id="w-lenq"   class="wire" d="M 660 341 C 860 341, 860 330, 860 295"/>
+          <path id="w-deq"    class="wire" d="M 740 260 L 665 260"/>
+          <path id="w-send"   class="wire" d="M 410 260 C 330 260, 330 156, 245 156"/>
+          <path id="w-mirror" class="wire" d="M 140 182 L 140 225"/>
+        </svg>
+
+        <hr style="height:1px;background:hsl(var(--border));border:none;margin:18px 0">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="sc-btn-outline" id="ov-prev">← Prev</button>
+          <button class="sc-btn" id="ov-next">Next step →</button>
+          <span class="sc-badge" id="ov-stepno">step 0 / 6</span>
+          <span class="text-sm" id="ov-desc" style="flex:1;min-width:260px">Press <span class="kbd">Next step</span> to walk one message through the system — from client subscribe to a live incremental update.</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Why these pieces exist</h2>
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+        <div class="sc-card pad-sm">
+          <div style="font-weight:700;font-size:13.5px">Snapshot + incrementals</div>
+          <div class="text-sm muted mt-2">On subscribe, the client gets one full <b>snapshot</b> of the book, then a stream of small <b>incremental</b> deltas it applies on top. Re-sending the whole book on every change would waste bandwidth; deltas keep steady-state traffic tiny.</div>
+        </div>
+        <div class="sc-card pad-sm">
+          <div style="font-weight:700;font-size:13.5px">One socket, one writer</div>
+          <div class="text-sm muted mt-2">Only the <b>sender thread</b> ever calls <span class="mono">send()</span>. The listener and the consumer hand it work through the queue — so frames from different producers can never interleave mid-message on the wire.</div>
+        </div>
+        <div class="sc-card pad-sm">
+          <div style="font-weight:700;font-size:13.5px">Sequence numbers</div>
+          <div class="text-sm muted mt-2">Every message carries a monotonic per-instrument <b>seq</b>. The client applies updates in order and can detect a re-snapshot boundary — the backbone of correct reconstruction.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ TAB 2: WIRE FORMAT ============ -->
+  <div class="tabpane" data-pane="wire">
+    <section>
+      <h2>The problem: TCP is a byte stream</h2>
+      <div class="sc-card">
+        <p class="text-sm" style="margin-top:0">TCP delivers a reliable, ordered <b>stream of bytes</b> — it has no idea where one message ends and the next begins. Protobuf is <b>not self-delimiting</b>: a parser can't find a message boundary on its own. So every frame on this wire is:</p>
+        <div class="flex items-center gap-2 flex-wrap mt-3">
+          <div>
+            <div class="bytes" id="hdrbytes">
+              <div class="byte hdr">00</div><div class="byte hdr">00</div><div class="byte hdr">00</div><div class="byte hdr">55</div>
+              <div class="byte pay">protobuf payload — <span id="paylen2">85</span> bytes</div>
+            </div>
+            <div class="flex" style="gap:4px">
+              <div class="bytelab" style="width:196px">4-byte length header · <b>hex</b> · big-endian (network byte order)</div>
+              <div class="bytelab" style="flex:1">Snapshot / Incremental message</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4 flex-wrap">
+          <label class="text-sm" for="paylen">Payload size:</label>
+          <input type="number" id="paylen" min="0" max="16777215" value="85">
+          <span class="text-sm muted">bytes → header bytes in <b>hex</b>: <span class="mono" id="hexstr">00 00 00 55</span> &nbsp;(<span class="mono" id="decnote">85 = 0x00000055</span>)</span>
+        </div>
+        <p class="text-sm muted mt-3" style="margin-bottom:0">Big-endian is the network convention (<span class="mono">htonl</span>/<span class="mono">ntohl</span>) — both peers agree on byte order regardless of CPU endianness.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Receive path — how the client reassembles messages</h2>
+      <div class="sc-card">
+        <div id="rxsteps">
+          <div class="stepline" data-rx="0">
+            <div class="code">recv_all(sock, hdr, 4)</div>
+            <div class="note">Read <b>exactly</b> 4 bytes. <span class="mono">recv()</span> may return fewer bytes than asked (a short read) — <span class="mono">recv_all</span> loops until all 4 arrive.</div>
+          </div>
+          <div class="stepline" data-rx="1">
+            <div class="code">n = ntohl(hdr)&nbsp;&nbsp;// = 85</div>
+            <div class="note">Decode the big-endian header into the payload length.</div>
+          </div>
+          <div class="stepline" data-rx="2">
+            <div class="code">recv_all(sock, buf, n)</div>
+            <div class="note">Read exactly <span class="mono">n</span> payload bytes — again looping over short reads until the whole message is in.</div>
+          </div>
+          <div class="stepline" data-rx="3">
+            <div class="code">msg.ParseFromArray(buf, n)</div>
+            <div class="note">Hand protobuf a complete, exact-sized buffer. One whole message recovered; loop back for the next frame.</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <button class="sc-btn-outline" id="rx-prev">← Prev</button>
+          <button class="sc-btn" id="rx-next">Next →</button>
+          <span class="sc-badge" id="rx-stepno">step 1 / 4</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ TAB 3: THREAD SIM ============ -->
+  <div class="tabpane" data-pane="threads">
+    <section>
+      <div class="sc-card pad-sm flex items-center gap-3 flex-wrap">
+        <button class="sc-btn" id="btn-connect">1 · Connect client</button>
+        <button class="sc-btn" id="btn-step" disabled>Next step →</button>
+        <button class="sc-btn-outline" id="btn-auto" disabled>▶ Auto-run</button>
+        <button class="sc-btn-outline" id="btn-reset">Reset</button>
+        <span class="flex items-center gap-2 text-sm muted">auto speed
+          <input type="range" id="speed" min="1" max="6" value="3" style="width:110px">
+        </span>
+        <span class="sc-badge" id="seqbadge">seq 0</span>
+        <div class="text-sm" id="stepdesc" style="flex-basis:100%;color:hsl(var(--foreground))">Click "1 · Connect client", then advance one step per click with "Next step".</div>
+      </div>
+
+      <div class="grid gap-3 mt-3 sim-grid" style="grid-template-columns:1.1fr 1fr 1.1fr">
+
+        <!-- threads column -->
+        <div class="grid gap-3" style="align-content:start">
+          <div class="sc-card pad-sm" id="card-gen">
+            <div class="flex items-center justify-between">
+              <span class="tname" style="font-weight:700;font-size:13px">Simulated market events</span>
+              <span class="sc-badge">source</span>
+            </div>
+            <div class="tstatus mono text-xs muted mt-2" id="st-gen" style="min-height:18px">idle</div>
+          </div>
+          <div class="lane" id="lane-listener">
+            <div class="flex items-center justify-between">
+              <span class="tname">Thread 1 · client-request listener</span>
+              <span class="sc-badge">T1</span>
+            </div>
+            <div class="tstatus" id="st-listener">blocked in accept()</div>
+          </div>
+          <div class="lane" id="lane-consumer">
+            <div class="flex items-center justify-between">
+              <span class="tname">Thread 2 · market-event consumer</span>
+              <span class="sc-badge">T2</span>
+            </div>
+            <div class="tstatus" id="st-consumer">waiting for events</div>
+          </div>
+          <div class="lane" id="lane-sender">
+            <div class="flex items-center justify-between">
+              <span class="tname">Thread 3 · request sender</span>
+              <span class="sc-badge">T3</span>
+            </div>
+            <div class="tstatus" id="st-sender">queue empty — polling</div>
+          </div>
+        </div>
+
+        <!-- shared state column -->
+        <div class="grid gap-3" style="align-content:start">
+          <div class="sc-card pad-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span style="font-weight:700;font-size:13px">Authoritative L2 book</span>
+              <span class="sc-badge">server</span>
+            </div>
+            <div class="book" id="server-book"></div>
+          </div>
+          <div class="sc-card pad-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span style="font-weight:700;font-size:13px">Outgoing queue</span>
+              <span class="lockchip" id="lockchip"><span class="dot"></span><span id="lockstate">spinlock FREE</span></span>
+            </div>
+            <div class="queue" id="queue"><span class="qempty">empty</span></div>
+            <div class="text-xs muted mt-2">Producers: T1 (snapshots), T2 (incrementals). Consumer: T3. The spinlock serializes access — critical section is a tiny push/pop, so spinning beats a sleeping mutex.</div>
+          </div>
+        </div>
+
+        <!-- client column -->
+        <div class="grid gap-3" style="align-content:start">
+          <div class="sc-card pad-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span style="font-weight:700;font-size:13px">Client — received frames</span>
+              <span class="sc-badge" id="connbadge">disconnected</span>
+            </div>
+            <div class="log" id="clientlog"><div class="sys">— not connected —</div></div>
+          </div>
+          <div class="sc-card pad-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span style="font-weight:700;font-size:13px">Client mirrored book</span>
+              <span class="sc-badge" id="clientseq">last seq —</span>
+            </div>
+            <div class="book" id="client-book"><div class="qempty" style="font-size:12px;color:hsl(var(--muted-foreground));font-style:italic">no snapshot yet</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-card pad-sm mt-3 text-sm muted">
+        <b style="color:hsl(var(--foreground))">What to watch:</b> every event flows
+        <span class="mono">source → T2 applies to book → 🔒 enqueue → T3 🔒 dequeue → frame (4-byte len + protobuf) → send() → client applies</span>.
+        The lock chip turns <span style="color:hsl(var(--amber));font-weight:600">amber</span> while a thread holds it;
+        when T2 holds it, watch T3's lane — it reports <span class="mono">try_lock failed — spinning</span>.
+        The client book should always equal the server book once seq numbers match — that's the correctness invariant.
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- tabs ---------- */
+  var tabs = document.querySelectorAll('.sc-tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){ x.dataset.active = 'false'; });
+      t.dataset.active = 'true';
+      document.querySelectorAll('.tabpane').forEach(function(p){
+        p.dataset.show = (p.dataset.pane === t.dataset.tab) ? 'true' : 'false';
+      });
+    });
+  });
+
+  /* ---------- tab 1: overview stepper ---------- */
+  var ovSteps = [
+    { boxes:[], wires:[],
+      text:'Press "Next step" to walk one message through the system — from client subscribe to a live incremental update.' },
+    { boxes:['ov-client','ov-listener'], wires:['w-sub'],
+      text:'1 · The client connect()s over TCP and sends a Subscribe request up the socket. Thread 1 (listener) accepts and parses it.' },
+    { boxes:['ov-listener','ov-book','ov-queue'], wires:['w-lenq'],
+      text:'2 · T1 registers the subscription, copies the current book into a Snapshot message, takes the spinlock, and pushes it onto the outgoing queue.' },
+    { boxes:['ov-queue','ov-sender','ov-client','ov-mirror'], wires:['w-deq','w-send','w-mirror'],
+      text:'3 · T3 (sender) pops the snapshot, prefixes the 4-byte length, send()s it. The client parses it and initializes its mirrored book.' },
+    { boxes:['ov-gen','ov-consumer'], wires:['w-gen'],
+      text:'4 · The simulated market emits an event: add, replace, or remove a price level. Thread 2 (consumer) picks it up.' },
+    { boxes:['ov-consumer','ov-book','ov-queue'], wires:['w-apply','w-enq'],
+      text:'5 · T2 applies the event to the authoritative L2 book, bumps the sequence number, builds an Incremental message, and enqueues it under the spinlock.' },
+    { boxes:['ov-queue','ov-sender','ov-client','ov-mirror'], wires:['w-deq','w-send','w-mirror'],
+      text:'6 · T3 frames and send()s the incremental. The client applies the delta onto its snapshot — its mirror now equals the server book. Steps 4–6 repeat forever.' }
+  ];
+  var ovIdx = 0;
+  function ovRender(){
+    document.querySelectorAll('#ovsvg .box-rect').forEach(function(r){ r.classList.remove('active'); });
+    document.querySelectorAll('#ovsvg .wire').forEach(function(w){ w.classList.remove('active'); });
+    var s = ovSteps[ovIdx];
+    s.boxes.forEach(function(id){
+      var g = $(id); if(g){ var r = g.querySelector('.box-rect'); if(r) r.classList.add('active'); }
+    });
+    s.wires.forEach(function(id){ var w = $(id); if(w) w.classList.add('active'); });
+    $('ov-desc').textContent = s.text;
+    $('ov-stepno').textContent = 'step ' + ovIdx + ' / ' + (ovSteps.length - 1);
+    $('ov-prev').disabled = (ovIdx === 0);
+    $('ov-next').disabled = (ovIdx === ovSteps.length - 1);
+  }
+  $('ov-next').addEventListener('click', function(){ if(ovIdx < ovSteps.length-1){ ovIdx++; ovRender(); } });
+  $('ov-prev').addEventListener('click', function(){ if(ovIdx > 0){ ovIdx--; ovRender(); } });
+  ovRender();
+
+  /* ---------- tab 2: wire format ---------- */
+  function renderHeader(){
+    var v = Math.max(0, Math.min(16777215, parseInt($('paylen').value || '0', 10)));
+    var hex = [(v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255].map(function(b){
+      return b.toString(16).padStart(2,'0').toUpperCase();
+    });
+    var cells = document.querySelectorAll('#hdrbytes .byte.hdr');
+    cells.forEach(function(c,i){ c.textContent = hex[i]; });
+    $('hexstr').textContent = hex.join(' ');
+    $('decnote').textContent = v + ' decimal = 0x' + hex.join('');
+    $('paylen2').textContent = v;
+  }
+  $('paylen').addEventListener('input', renderHeader);
+  renderHeader();
+
+  var rxIdx = 0;
+  function rxRender(){
+    document.querySelectorAll('#rxsteps .stepline').forEach(function(el,i){
+      el.classList.toggle('on', i === rxIdx);
+    });
+    $('rx-stepno').textContent = 'step ' + (rxIdx+1) + ' / 4';
+    $('rx-prev').disabled = (rxIdx === 0);
+    $('rx-next').disabled = (rxIdx === 3);
+  }
+  $('rx-next').addEventListener('click', function(){ if(rxIdx < 3){ rxIdx++; rxRender(); } });
+  $('rx-prev').addEventListener('click', function(){ if(rxIdx > 0){ rxIdx--; rxRender(); } });
+  rxRender();
+
+  /* ---------- tab 3: live thread simulation ---------- */
+  var BID_SLOTS = [9975, 9950, 9925, 9900, 9875, 9850];
+  var ASK_SLOTS = [10000, 10025, 10050, 10075, 10100, 10125];
+  var S = null, autoTimer = null, busy = false;
+
+  function freshState(){
+    return {
+      book: { bids: [], asks: [] },   // arrays of {price, size}
+      seq: 0,
+      queue: [],                       // {kind:'SNAP'|'INCR', seq, ev}
+      connected: false,
+      client: { book: null, lastSeq: 0 }
+    };
+  }
+
+  function speedMs(base){ return Math.max(40, base / parseInt($('speed').value, 10) * 2); }
+  function sleep(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+
+  function sortBook(b){
+    b.bids.sort(function(a,c){ return c.price - a.price; });
+    b.asks.sort(function(a,c){ return a.price - c.price; });
+  }
+  function cloneBook(b){
+    return { bids: b.bids.map(function(l){ return {price:l.price,size:l.size}; }),
+             asks: b.asks.map(function(l){ return {price:l.price,size:l.size}; }) };
+  }
+  function fmtPx(p){ return (p/100).toFixed(2); }
+
+  function renderBook(el, book, flashPrice){
+    if(!book){ el.innerHTML = '<div style="font-size:12px;color:hsl(var(--muted-foreground));font-style:italic">no snapshot yet</div>'; return; }
+    var maxSize = 1;
+    book.bids.concat(book.asks).forEach(function(l){ if(l.size > maxSize) maxSize = l.size; });
+    var html = '';
+    // asks shown top, furthest first
+    var asksDesc = book.asks.slice().reverse();
+    asksDesc.forEach(function(l){
+      html += rowHtml('ask', l, maxSize, flashPrice);
+    });
+    if(book.asks.length === 0) html += '<div class="row ask muted" style="justify-content:center;font-size:11px">— no asks —</div>';
+    var bb = book.bids[0], ba = book.asks[0];
+    var spread = (bb && ba) ? (ba.price - bb.price) : null;
+    html += '<div class="spread">' + (spread !== null ? 'spread ' + fmtPx(spread) : 'spread —') + '</div>';
+    book.bids.forEach(function(l){
+      html += rowHtml('bid', l, maxSize, flashPrice);
+    });
+    if(book.bids.length === 0) html += '<div class="row bid muted" style="justify-content:center;font-size:11px">— no bids —</div>';
+    el.innerHTML = html;
+  }
+  function rowHtml(side, l, maxSize, flashPrice){
+    var pct = Math.round(l.size / maxSize * 100);
+    var flash = (flashPrice === l.price) ? ' flash' : '';
+    return '<div class="row ' + side + flash + '"><span class="bar" style="width:' + pct + '%"></span>' +
+           '<span class="px">' + fmtPx(l.price) + '</span><span>' + l.size + '</span></div>';
+  }
+
+  function renderQueue(){
+    var q = $('queue');
+    if(S.queue.length === 0){ q.innerHTML = '<span class="qempty">empty</span>'; return; }
+    q.innerHTML = S.queue.map(function(m){
+      return '<span class="qmsg' + (m.kind === 'SNAP' ? ' snap' : '') + '">' + m.kind + ' #' + m.seq + '</span>';
+    }).join('');
+  }
+
+  function setLock(state, owner){
+    var chip = $('lockchip'), label = $('lockstate');
+    chip.classList.remove('held','spin');
+    if(state === 'free'){ label.textContent = 'spinlock FREE'; }
+    else if(state === 'held'){ chip.classList.add('held'); label.textContent = '🔒 held by ' + owner; }
+    else if(state === 'spin'){ chip.classList.add('spin'); label.textContent = owner + ' spinning…'; }
+  }
+
+  function thread(id, status, hot){
+    $('st-' + id).textContent = status;
+    var lane = $('lane-' + id);
+    if(lane) lane.classList.toggle('hot', !!hot);
+  }
+
+  function clientLog(cls, text){
+    var log = $('clientlog');
+    var d = document.createElement('div');
+    d.className = cls; d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setSeqBadges(){
+    $('seqbadge').textContent = 'seq ' + S.seq;
+    $('clientseq').textContent = 'last seq ' + (S.client.lastSeq || '—');
+  }
+
+  /* market event generation — mirrors the video's rules:
+     empty side → can only add; fuller side → higher chance of remove */
+  function genEvent(){
+    var side = Math.random() < 0.5 ? 'bids' : 'asks';
+    var slots = side === 'bids' ? BID_SLOTS : ASK_SLOTS;
+    var levels = S.book[side];
+    var present = levels.map(function(l){ return l.price; });
+    var empty = slots.filter(function(p){ return present.indexOf(p) < 0; });
+    var op;
+    if(levels.length === 0) op = 'ADD';
+    else {
+      var pRemove = Math.min(0.45, levels.length * 0.09);
+      var r = Math.random();
+      if(r < pRemove) op = 'REMOVE';
+      else if(r < pRemove + 0.35 || empty.length === 0) op = 'REPLACE';
+      else op = 'ADD';
+    }
+    var price, size = (2 + Math.floor(Math.random()*18)) * 100;
+    if(op === 'ADD') price = empty[Math.floor(Math.random()*empty.length)];
+    else price = present[Math.floor(Math.random()*present.length)];
+    return { side: side, op: op, price: price, size: size };
+  }
+
+  function applyEvent(book, ev){
+    var levels = book[ev.side];
+    if(ev.op === 'ADD'){ levels.push({price: ev.price, size: ev.size}); }
+    else if(ev.op === 'REPLACE'){
+      levels.forEach(function(l){ if(l.price === ev.price) l.size = ev.size; });
+    } else {
+      book[ev.side] = levels.filter(function(l){ return l.price !== ev.price; });
+    }
+    sortBook(book);
+  }
+
+  function evText(ev){
+    return ev.op + ' ' + (ev.side === 'bids' ? 'BID' : 'ASK') + ' ' + fmtPx(ev.price) +
+           (ev.op === 'REMOVE' ? '' : ' ×' + ev.size);
+  }
+
+  /* ---- step sequences: one click = one step ---- */
+  var seqSteps = null, stepIdx = 0;
+
+  function desc(text){ $('stepdesc').textContent = text; }
+
+  function connectSeq(){
+    var popped = null;
+    return [
+      function(){
+        $('clientlog').innerHTML = '';
+        clientLog('sys', 'connect(127.0.0.1:9001) … ok  [TCP_NODELAY]');
+        clientLog('sys', '→ sent Subscribe{instrument=SIM}');
+        thread('listener', 'accept() → new client socket', true);
+        desc('1/6 · Client connect()s over TCP and sends a Subscribe request; T1 accepts.');
+      },
+      function(){
+        thread('listener', 'parse Subscribe → register subscription', true);
+        desc('2/6 · T1 parses the request and registers the subscription.');
+      },
+      function(){
+        thread('listener', 'copy book → Snapshot, acquire spinlock', true);
+        setLock('held', 'T1 listener');
+        desc('3/6 · T1 copies the current book into a Snapshot message and takes the spinlock.');
+      },
+      function(){
+        S.seq++;
+        S.queue.push({ kind:'SNAP', seq: S.seq, snap: cloneBook(S.book) });
+        renderQueue(); setSeqBadges();
+        setLock('free');
+        thread('listener', 'blocked in accept() / poll()', false);
+        desc('4/6 · SNAP #' + S.seq + ' enqueued; T1 releases the lock and goes back to listening.');
+      },
+      function(){
+        thread('sender', 'acquire spinlock → pop front', true);
+        setLock('held', 'T3 sender');
+        popped = S.queue.shift();
+        renderQueue();
+        desc('5/6 · T3 (sender) acquires the spinlock and pops the snapshot off the queue.');
+      },
+      function(){
+        setLock('free');
+        thread('sender', 'serialize protobuf → prefix 4B len → send()', true);
+        S.client.book = popped.snap;
+        S.client.lastSeq = popped.seq;
+        clientLog('snap', '← SNAPSHOT  seq=' + popped.seq + '  (' + (popped.snap.bids.length + popped.snap.asks.length) + ' levels)');
+        renderBook($('client-book'), S.client.book, null);
+        setSeqBadges();
+        thread('sender', 'queue empty — polling', false);
+        S.connected = true;
+        $('connbadge').textContent = 'connected';
+        $('connbadge').classList.add('ok');
+        desc('6/6 · T3 frames it (4-byte length + protobuf) and send()s — client mirror initialized. Next step starts a market event.');
+      }
+    ];
+  }
+
+  function eventSeq(){
+    var ev = genEvent(), popped = null;
+    return [
+      function(){
+        $('st-gen').textContent = 'emit: ' + evText(ev);
+        $('card-gen').style.borderColor = 'hsl(var(--ring))';
+        desc('1/7 · Simulated market emits: ' + evText(ev));
+      },
+      function(){
+        $('card-gen').style.borderColor = '';
+        thread('consumer', 'consume event: ' + evText(ev), true);
+        desc('2/7 · T2 (market-event consumer) picks the event up.');
+      },
+      function(){
+        applyEvent(S.book, ev);
+        S.seq++;
+        thread('consumer', 'apply to book → seq=' + S.seq, true);
+        renderBook($('server-book'), S.book, ev.price);
+        setSeqBadges();
+        desc('3/7 · T2 applies it to the authoritative book; sequence number → ' + S.seq + '.');
+      },
+      function(){
+        thread('consumer', 'acquire spinlock → enqueue INCR #' + S.seq, true);
+        thread('sender', 'try_lock failed — spinning', true);
+        setLock('held', 'T2 consumer');
+        desc('4/7 · T2 holds the spinlock to enqueue; T3 tried too and is spin-waiting (busy loop, no syscall).');
+      },
+      function(){
+        S.queue.push({ kind:'INCR', seq: S.seq, ev: ev });
+        renderQueue();
+        setLock('free');
+        thread('consumer', 'waiting for events', false);
+        desc('5/7 · INCR #' + S.seq + ' enqueued; lock released — T3\'s next try_lock succeeds.');
+      },
+      function(){
+        thread('sender', 'acquire spinlock → pop front', true);
+        setLock('held', 'T3 sender');
+        popped = S.queue.shift();
+        renderQueue();
+        desc('6/7 · T3 acquires the lock and pops ' + popped.kind + ' #' + popped.seq + ' off the queue.');
+      },
+      function(){
+        setLock('free');
+        thread('sender', 'serialize protobuf → prefix 4B len → send()', true);
+        applyEvent(S.client.book, popped.ev);
+        S.client.lastSeq = popped.seq;
+        clientLog('incr', '← INCR  seq=' + popped.seq + '  ' + evText(popped.ev));
+        renderBook($('client-book'), S.client.book, popped.ev.price);
+        setSeqBadges();
+        thread('sender', 'queue empty — polling', false);
+        desc('7/7 · Framed and sent — client applies the delta; mirror matches the server at seq ' + popped.seq + '.');
+      }
+    ];
+  }
+
+  function doStep(){
+    if(!seqSteps){
+      if(S.connected){ seqSteps = eventSeq(); stepIdx = 0; }
+      else return;
+    }
+    seqSteps[stepIdx++]();
+    if(stepIdx >= seqSteps.length){ seqSteps = null; stepIdx = 0; }
+  }
+
+  /* ---- controls ---- */
+  function seedBook(){
+    // start with a few resting levels so the first snapshot is non-trivial
+    S.book.bids = [{price:9975,size:800},{price:9950,size:1400},{price:9925,size:600}];
+    S.book.asks = [{price:10000,size:900},{price:10025,size:1100}];
+    sortBook(S.book);
+  }
+
+  function resetAll(){
+    if(autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+    seqSteps = null; stepIdx = 0;
+    S = freshState();
+    seedBook();
+    renderBook($('server-book'), S.book, null);
+    renderBook($('client-book'), null, null);
+    renderQueue();
+    setLock('free');
+    setSeqBadges();
+    $('clientseq').textContent = 'last seq —';
+    $('connbadge').textContent = 'disconnected';
+    $('connbadge').classList.remove('ok');
+    $('clientlog').innerHTML = '<div class="sys">— not connected —</div>';
+    thread('listener', 'blocked in accept()', false);
+    thread('consumer', 'waiting for events', false);
+    thread('sender', 'queue empty — polling', false);
+    $('st-gen').textContent = 'idle';
+    $('card-gen').style.borderColor = '';
+    $('btn-connect').disabled = false;
+    $('btn-step').disabled = true;
+    $('btn-auto').disabled = true;
+    $('btn-auto').textContent = '▶ Auto-run';
+    desc('Click "1 · Connect client", then advance one step per click with "Next step".');
+  }
+
+  function autoTick(){
+    if(!autoTimer) return;
+    doStep();
+    autoTimer = setTimeout(autoTick, speedMs(650));
+  }
+
+  $('btn-connect').addEventListener('click', function(){
+    $('btn-connect').disabled = true;
+    $('btn-step').disabled = false;
+    $('btn-auto').disabled = false;
+    seqSteps = connectSeq(); stepIdx = 0;
+    doStep();
+  });
+  $('btn-step').addEventListener('click', doStep);
+  $('btn-auto').addEventListener('click', function(){
+    if(autoTimer){
+      clearTimeout(autoTimer); autoTimer = null;
+      $('btn-auto').textContent = '▶ Auto-run';
+    } else {
+      $('btn-auto').textContent = '⏸ Pause';
+      autoTimer = setTimeout(autoTick, 10);
+    }
+  });
+  $('btn-reset').addEventListener('click', resetAll);
+
+  resetAll();
+})();
+</script>
+</body>
+</html>
