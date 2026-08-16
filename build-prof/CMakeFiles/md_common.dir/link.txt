@@ -1,0 +1,2 @@
+/usr/bin/ar qc libmd_common.a CMakeFiles/md_common.dir/src/common/tcp_socket.cpp.o CMakeFiles/md_common.dir/src/common/framing.cpp.o CMakeFiles/md_common.dir/src/common/orderbook.cpp.o CMakeFiles/md_common.dir/src/common/feed_reader.cpp.o CMakeFiles/md_common.dir/market_data.pb.cc.o CMakeFiles/md_common.dir/test_message.pb.cc.o
+/usr/bin/ranlib libmd_common.a
