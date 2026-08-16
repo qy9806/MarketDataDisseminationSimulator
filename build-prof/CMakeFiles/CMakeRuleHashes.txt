@@ -1,3 +1,0 @@
-# Hashes of file build rules.
-cd801ef08ee0ffd667062c1c3ed0ab8b market_data.pb.h
-2a36b37efa66b3a50865f1893a6938e7 test_message.pb.h

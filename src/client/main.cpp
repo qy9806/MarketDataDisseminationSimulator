@@ -18,7 +18,7 @@
 namespace {
 namespace wire = MarketDataDisseminationProtoBuff;  // generated protobuf types
 constexpr uint16_t kPort = 9001;
-constexpr int kRequestEvery = 50000;  // send a SnapshotRequest per N actions
+constexpr int kRequestEvery = 3;  // send a SnapshotRequest per N actions
 }  // namespace
 
 int main(int argc, char** argv) {

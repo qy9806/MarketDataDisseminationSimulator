@@ -48,7 +48,9 @@ message Snapshot {
 message SnapshotRequest {
 }
 
-// main message body, either a snapshot or a marcket action
+// Internal queue envelope: one element carries EITHER a full Snapshot OR a
+// single MarketAction, so a single queue type holds both. `body_case()`
+// discriminates. The sender unwraps and puts the inner message on the wire.
 message MarketInfo {
   oneof body {
     Snapshot     snapshot = 1;

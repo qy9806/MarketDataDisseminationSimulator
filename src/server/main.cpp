@@ -42,7 +42,7 @@ std::unordered_map<InstrumentId, Instrument> make_instruments() {
 
 int main() {
     // Relative to the binary's working dir: run from build/ so ../ is the repo root.
-    const std::string feed_path = "../data/feed_big.csv";
+    const std::string feed_path = "../data/feed.csv";
 
     auto instruments = make_instruments();
     OrderBookManager manager;
