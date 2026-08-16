@@ -10,14 +10,12 @@
 
 namespace MarketDataFeedListener {
 
-void run(std::ifstream &feed,
-         OrderBookManager &manager,
+void run(std::ifstream &feed, OrderBookManager &manager,
          std::unordered_map<InstrumentId, Instrument> &instruments,
-         std::queue<wire::MarketInfo> &info_queue,
-         SpinLock &lock,
-         uint64_t &seq) {
+         std::queue<wire::MarketInfo> &info_queue, SpinLock &lock, uint64_t &seq,
+         std::atomic_int32_t &info_queue_size) {
     while (auto ev = EventHandler::next_event(feed)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));  // pace the feed
+        std::this_thread::sleep_for(std::chrono::milliseconds(300)); // pace the feed
 
         // Book mutation + seq bump under the lock, so the request listener sees
         // a consistent (book, seq) pair when it snapshots.
@@ -36,6 +34,7 @@ void run(std::ifstream &feed,
         // Hand off to the sender.
         lock.lock();
         info_queue.push(std::move(info));
+        info_queue_size++;
         lock.unlock();
 
         std::cout << "[feed] produced seq=" << s << "\n";
@@ -43,4 +42,4 @@ void run(std::ifstream &feed,
     std::cout << "[feed] exhausted, exiting\n";
 }
 
-}  // namespace MarketDataFeedListener
+} // namespace MarketDataFeedListener

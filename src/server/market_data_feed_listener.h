@@ -17,13 +17,11 @@
 // push (same lock the request listener and sender use).
 namespace MarketDataFeedListener {
 
-namespace wire = MarketDataDisseminationProtoBuff;  // generated protobuf types
+namespace wire = MarketDataDisseminationProtoBuff; // generated protobuf types
 
-void run(std::ifstream &feed,
-         OrderBookManager &manager,
+void run(std::ifstream &feed, OrderBookManager &manager,
          std::unordered_map<InstrumentId, Instrument> &instruments,
-         std::queue<wire::MarketInfo> &info_queue,
-         SpinLock &lock,
-         uint64_t &seq);
+         std::queue<wire::MarketInfo> &info_queue, SpinLock &lock, uint64_t &seq,
+         std::atomic_int32_t &info_queue_size);
 
-}  // namespace MarketDataFeedListener
+} // namespace MarketDataFeedListener

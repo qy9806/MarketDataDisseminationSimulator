@@ -19,6 +19,6 @@ namespace Sender {
 namespace wire = MarketDataDisseminationProtoBuff; // generated protobuf types
 
 void run(const networkFrame::TcpSocket &connection_socket, std::queue<wire::MarketInfo> &info_queue,
-         SpinLock &lock, const std::atomic<bool> &running);
+         SpinLock &lock, const std::atomic<bool> &running, std::atomic_int32_t &info_queue_size);
 
 } // namespace Sender

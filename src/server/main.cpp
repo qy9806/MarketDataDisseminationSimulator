@@ -47,6 +47,7 @@ int main() {
     auto instruments = make_instruments();
     OrderBookManager manager;
     std::queue<wire::MarketInfo> info_queue;
+    std::atomic_int32_t info_queue_size{};
     SpinLock spin_lock{};
     uint64_t seq = 0;
 
@@ -79,6 +80,7 @@ int main() {
         wire::MarketInfo info;
         *info.mutable_snapshot() = Translate::build_snapshot(seq, manager);
         info_queue.push(std::move(info));
+        info_queue_size++;
     }
 
     // 4. Spawn the three threads. `running` lets main tell the sender to stop
@@ -86,14 +88,16 @@ int main() {
     std::atomic<bool> running{true};
 
     std::thread sender_thread(
-        [&] { Sender::run(connection_socket, info_queue, spin_lock, running); });
+        [&] { Sender::run(connection_socket, info_queue, spin_lock, running, info_queue_size); });
 
     std::thread feed_thread([&] {
-        MarketDataFeedListener::run(feed, manager, instruments, info_queue, spin_lock, seq);
+        MarketDataFeedListener::run(feed, manager, instruments, info_queue, spin_lock, seq,
+                                    info_queue_size);
     });
 
     std::thread request_thread([&] {
-        ClientRequestListener::run(connection_socket, manager, info_queue, spin_lock, seq);
+        ClientRequestListener::run(connection_socket, manager, info_queue, spin_lock, seq,
+                                   info_queue_size);
     });
 
     // 5. The feed drives the lifetime: when it exhausts, wind everything down.

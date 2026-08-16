@@ -8,11 +8,9 @@
 
 namespace ClientRequestListener {
 
-void run(const networkFrame::TcpSocket &connection_socket,
-         const OrderBookManager &manager,
-         std::queue<wire::MarketInfo> &info_queue,
-         SpinLock &lock,
-         const uint64_t &seq) {
+void run(const networkFrame::TcpSocket &connection_socket, const OrderBookManager &manager,
+         std::queue<wire::MarketInfo> &info_queue, SpinLock &lock, const uint64_t &seq,
+         std::atomic_int32_t &info_queue_size) {
     wire::SnapshotRequest request;
 
     // Block on the socket's recv half; each decoded request => one snapshot.
@@ -27,6 +25,7 @@ void run(const networkFrame::TcpSocket &connection_socket,
         lock.lock();
         *info.mutable_snapshot() = Translate::build_snapshot(seq, manager);
         info_queue.push(std::move(info));
+        info_queue_size++;
         lock.unlock();
 
         std::cout << "[request] snapshot requested -> queued (seq=" << seq << ")\n";
@@ -35,4 +34,4 @@ void run(const networkFrame::TcpSocket &connection_socket,
     std::cout << "[request] read half closed, exiting\n";
 }
 
-}  // namespace ClientRequestListener
+} // namespace ClientRequestListener
