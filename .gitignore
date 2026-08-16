@@ -10,4 +10,5 @@ compile_commands.json
 .cache/
 .claude/
 .vscode/
+build-prof/
 CLAUDE.md
